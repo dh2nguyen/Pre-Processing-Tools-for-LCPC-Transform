@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dot-Interpolating Image Segmentation Tool</title>
+<style>
+  :root{
+    --bg:#111318;
+    --panel:#1a1d24;
+    --panel-2:#20242c;
+    --border:#2c313b;
+    --text:#e8eaed;
+    --text-dim:#9aa0a8;
+    --accent:#4f8cff;
+    --accent-2:#3a6fd8;
+    --red:#ff3b30;
+    --blue:#1e6bff;
+    --good:#2fbf71;
+    --warn:#ffb020;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 16px 60px;
+  }
+  h1{
+    font-size:20px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .subtitle{
+    color:var(--text-dim);
+    font-size:13px;
+    margin:0 0 20px;
+    text-align:center;
+    max-width:640px;
+    line-height:1.5;
+  }
+  .app{
+    width:100%;
+    max-width:1100px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+  }
+  .upload-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  input[type=file]{
+    color:var(--text-dim);
+    font-size:13px;
+  }
+  .filename{
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .steps{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    font-size:12px;
+    color:var(--text-dim);
+    margin-top:10px;
+  }
+  .step{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:5px 12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .step.active{
+    border-color:var(--accent);
+    color:var(--text);
+  }
+  .step .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--text-dim);
+  }
+  .step.active .dot{ background:var(--accent); }
+
+  .zoom-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+  }
+  .zoom-label{
+    min-width:52px;
+    text-align:center;
+    font-size:12px;
+    color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
+  .zoom-hint{
+    font-size:11px;
+    color:var(--text-dim);
+  }
+
+  .canvas-wrap{
+    position:relative;
+    display:flex;
+    justify-content:center;
+    background:
+      linear-gradient(45deg,#2a2d34 25%,transparent 25%),
+      linear-gradient(-45deg,#2a2d34 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#2a2d34 75%),
+      linear-gradient(-45deg,transparent 75%,#2a2d34 75%);
+    background-size:20px 20px;
+    background-position:0 0,0 10px,10px -10px,-10px 0px;
+    background-color:#15171c;
+    border:1px solid var(--border);
+    border-radius:10px;
+    min-height:200px;
+    max-height:70vh;
+    overflow:auto;
+    padding:10px;
+  }
+  #canvas{
+    display:block;
+    border-radius:4px;
+    cursor:crosshair;
+    touch-action:none;
+    flex:none;
+  }
+  .placeholder{
+    color:var(--text-dim);
+    font-size:14px;
+    padding:60px 20px;
+    text-align:center;
+  }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+  }
+  button{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:8px 14px;
+    border-radius:8px;
+    font-size:13px;
+    cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  button:hover:not(:disabled){
+    border-color:var(--accent);
+  }
+  button:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+  }
+  button.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff;
+    font-weight:600;
+  }
+  button.primary:hover:not(:disabled){
+    background:var(--accent-2);
+  }
+  button.danger{
+    color:#ffb3ad;
+  }
+  button.danger:hover:not(:disabled){
+    border-color:var(--red);
+  }
+  button.small{
+    padding:5px 10px;
+    font-size:13px;
+    line-height:1;
+  }
+  .spacer{ flex:1 1 auto; }
+  label.field{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  input[type=number]{
+    width:64px;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:5px 7px;
+    font-size:13px;
+  }
+  input[type=text]{
+    width:220px;
+    max-width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:5px 7px;
+    font-size:13px;
+  }
+  .status{
+    font-size:12px;
+    color:var(--text-dim);
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .status b{ color:var(--text); font-weight:600; }
+  .legend{
+    display:flex;
+    gap:14px;
+    font-size:12px;
+    color:var(--text-dim);
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .swatch{
+    width:12px;height:12px;border-radius:50%;
+    display:inline-block;
+    margin-right:5px;
+    vertical-align:-2px;
+  }
+  .export-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .toast{
+    position:fixed;
+    bottom:22px;
+    left:50%;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:10px 18px;
+    border-radius:8px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s, transform .2s;
+    z-index:50;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+  .help{
+    font-size:12px;
+    color:var(--text-dim);
+    line-height:1.6;
+  }
+  .help kbd{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:1px 5px;
+    font-size:11px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Dot-Interpolating Segmentation Tool</h1>
+<p class="subtitle">Upload an image, click to place consecutive dots, and the app connects them into a smooth curve with many draggable points. Click the first dot again to close the shape into a loop. Zoom in for precision, then export the segmented image and a mask. Everything runs locally in your browser &mdash; no images are uploaded anywhere.</p>
+<div id="errorBanner" style="display:none; max-width:640px; width:100%; background:#3a1414; border:1px solid #ff3b30; color:#ffb3ad; font-size:12px; padding:10px 14px; border-radius:8px; margin:0 0 16px; white-space:pre-wrap;"></div>
+
+<div class="app">
+
+  <div class="panel">
+    <div class="upload-row">
+      <input type="file" id="fileInput" accept="image/*">
+      <span class="filename" id="filenameLabel"></span>
+      <div class="spacer"></div>
+      <button id="newImageBtn" disabled>Load different image</button>
+    </div>
+    <div class="steps">
+      <div class="step" id="stepPlace"><span class="dot"></span>1. Click to place dots</div>
+      <div class="step" id="stepFinish"><span class="dot"></span>2. Finish line or close loop</div>
+      <div class="step" id="stepEdit"><span class="dot"></span>3. Drag points to adjust</div>
+      <div class="step" id="stepExport"><span class="dot"></span>4. Export</div>
+    </div>
+  </div>
+
+  <div class="panel" style="padding:10px;">
+    <div class="zoom-row">
+      <button id="zoomOutBtn" class="small" disabled title="Zoom out">&minus;</button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+      <button id="zoomInBtn" class="small" disabled title="Zoom in">+</button>
+      <button id="zoomFitBtn" class="small" disabled>Fit</button>
+      <button id="zoomActualBtn" class="small" disabled>100%</button>
+      <div class="spacer"></div>
+      <span class="zoom-hint">Scroll to pan &middot; hold <kbd style="background:var(--panel-2); border:1px solid var(--border); border-radius:4px; padding:1px 5px;">Ctrl</kbd>/<kbd style="background:var(--panel-2); border:1px solid var(--border); border-radius:4px; padding:1px 5px;">&#8984;</kbd> + scroll to zoom</span>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <div class="placeholder" id="placeholder">No image loaded yet. Choose a file above to begin.</div>
+      <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <button id="undoBtn" disabled>Undo last point</button>
+      <button id="clearBtn" disabled>Clear all points</button>
+      <button id="finishBtn" class="primary" disabled>Finish line &rarr;</button>
+      <button id="startOverBtn" disabled>Start over (edit points)</button>
+      <label class="field">
+        Point spacing (px)
+        <input type="number" id="spacingInput" value="20" min="4" max="200" step="1">
+      </label>
+      <div class="spacer"></div>
+      <label class="field">
+        Red line width
+        <input type="number" id="lineWidthInput" value="4" min="1" max="40" step="1">
+      </label>
+    </div>
+    <div style="height:10px;"></div>
+    <div class="toolbar">
+      <div class="legend">
+        <span><span class="swatch" style="background:#ffd400;border:2px solid #7a5f00;"></span>control dot (step 1)</span>
+        <span><span class="swatch" style="background:transparent;border:2px dashed #4f8cff;"></span>first dot (click to close loop, once &ge;3 dots)</span>
+        <span><span class="swatch" style="background:#fff;border:2px solid #1e6bff;"></span>draggable point (step 3)</span>
+        <span><span class="swatch" style="background:#ff3b30;"></span>segmentation line</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="status">
+        <span>Mode: <b id="modeLabel">placing points</b></span>
+        <span>Points: <b id="countLabel">0</b></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar" style="margin-bottom:12px;">
+      <label class="field">
+        Label / suffix (optional)
+        <input type="text" id="labelInput" placeholder="e.g. door, object1" maxlength="60">
+      </label>
+      <span class="zoom-hint">Appended to both exported filenames &mdash; e.g. <code>photo_segmented_door.png</code> &amp; <code>photo_blue_door.png</code>. Useful for tracing several distinct objects on the same image: give each one a different label before exporting it.</span>
+    </div>
+    <div class="export-row">
+      <button id="exportSegBtn" class="primary" disabled>Export segmented image (red line)</button>
+      <button id="exportMaskBtn" class="primary" disabled>Export mask (blue line, 7px)</button>
+      <button id="exportBothBtn" disabled>Export both</button>
+    </div>
+    <div style="height:12px;"></div>
+    <div class="help">
+      <b>How to use:</b> click anywhere on the image to drop dots one after another, tracing along the boundary you want to segment.
+      Click <kbd>Finish line &rarr;</kbd> once you have at least 2 dots to end an open line, <b>or click the first dot again</b> (once you have at least 3 dots) to close the shape into a loop.
+      Use the zoom controls (or <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + scroll) to get closer to edges while placing or adjusting dots; scroll or drag the scrollbars to pan around when zoomed in.
+      Drag any handle to nudge the line &mdash; the rendered/exported line is a smooth curve through the handles, not a straight-line polygon, so it should follow tight bends cleanly. Double-click on the line to insert a new handle at that spot; right-click a handle to delete it.
+      When you're happy with the line, optionally set a label above, then export the two output images. Filenames automatically match your input file name, with <code>_segmented</code> and <code>_blue</code> suffixes (plus your label, if set).
+      To trace a second, independent object on the same image: export the current line, click <kbd>Start over</kbd>, change the label, and trace the next one &mdash; each export gets its own distinct filenames.
+    </div>
+  </div>
+
+  <div class="panel" id="exportPreviewPanel" style="display:none;">
+    <div style="font-size:13px; color:var(--text); margin-bottom:12px; line-height:1.5;">
+      <b>Your images are ready below.</b> Some browsers (especially when this page is embedded/hosted, e.g. via a shared link) block automatic downloads.
+      To be safe, <b style="color:var(--warn);">right-click each image and choose &ldquo;Save Image As&hellip;&rdquo;</b> to save it to your computer. An automatic download was also attempted, so check your Downloads folder too &mdash; if it's not there, the manual save below will work.
+    </div>
+    <div id="exportPreviewList" style="display:flex; flex-wrap:wrap; gap:16px;"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Error surfacing (so failures are visible instead of silent) ----------
+  const errorBanner = document.getElementById("errorBanner");
+  function showError(msg){
+    console.error(msg);
+    errorBanner.textContent = "Error: " + msg;
+    errorBanner.style.display = "block";
+  }
+  window.addEventListener("error", (e)=>{
+    showError((e && e.message) ? e.message : String(e));
+  });
+  window.addEventListener("unhandledrejection", (e)=>{
+    showError(e && e.reason ? (e.reason.message || String(e.reason)) : "Unhandled promise rejection");
+  });
+
+  // Browsers silently fail (blank canvas, no exception) if a canvas is allocated too large.
+  // Cap the working resolution so the app degrades gracefully on very large photos instead
+  // of appearing to "do nothing" after a file is chosen.
+  const MAX_CANVAS_DIM = 6000;
+  const MAX_CANVAS_AREA = 20000000; // ~20 megapixels
+
+  const ZOOM_MIN = 0.1;
+  const ZOOM_MAX = 8;
+
+  // Fixed-quality step count used when rendering the smooth curve for export
+  // (independent of on-screen zoom, since export happens at full working resolution).
+  const EXPORT_RENDER_STEPS = 16;
+
+  // ---------- State ----------
+  const state = {
+    img: null,
+    fileBase: "image",
+    fileExt: ".png",
+    mimeType: "image/png",
+    naturalWidth: 0,
+    naturalHeight: 0,
+    workingWidth: 0,
+    workingHeight: 0,
+    mode: "place",       // 'place' | 'edit'
+    controlPoints: [],   // raw clicked points, buffer coords {x,y}
+    points: [],          // dense editable points, buffer coords {x,y}
+    closed: false,        // true once the loop has been closed
+    dragIndex: -1,
+    dragging: false,
+    hasDraggedDuringPointer: false,
+    zoom: 1,
+    fitZoom: 1
+  };
+
+  // ---------- Elements ----------
+  const fileInput = document.getElementById("fileInput");
+  const filenameLabel = document.getElementById("filenameLabel");
+  const newImageBtn = document.getElementById("newImageBtn");
+  const placeholder = document.getElementById("placeholder");
+  const canvasWrap = document.getElementById("canvasWrap");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const undoBtn = document.getElementById("undoBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const finishBtn = document.getElementById("finishBtn");
+  const startOverBtn = document.getElementById("startOverBtn");
+  const spacingInput = document.getElementById("spacingInput");
+  const lineWidthInput = document.getElementById("lineWidthInput");
+  const labelInput = document.getElementById("labelInput");
+  const modeLabel = document.getElementById("modeLabel");
+  const countLabel = document.getElementById("countLabel");
+  const exportSegBtn = document.getElementById("exportSegBtn");
+  const exportMaskBtn = document.getElementById("exportMaskBtn");
+  const exportBothBtn = document.getElementById("exportBothBtn");
+  const toast = document.getElementById("toast");
+  const stepPlace = document.getElementById("stepPlace");
+  const stepFinish = document.getElementById("stepFinish");
+  const stepEdit = document.getElementById("stepEdit");
+  const stepExport = document.getElementById("stepExport");
+  const zoomOutBtn = document.getElementById("zoomOutBtn");
+  const zoomInBtn = document.getElementById("zoomInBtn");
+  const zoomFitBtn = document.getElementById("zoomFitBtn");
+  const zoomActualBtn = document.getElementById("zoomActualBtn");
+  const zoomLabel = document.getElementById("zoomLabel");
+
+  const HANDLE_RADIUS_CSS = 6;     // visual/hit radius in CSS (display) pixels
+  const CONTROL_RADIUS_CSS = 6;
+  const INSERT_THRESHOLD_CSS = 10; // how close a dblclick must be to a segment to insert
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toast.classList.remove("show"), 2200);
+  }
+
+  // ---------- File loading ----------
+  fileInput.addEventListener("change", (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    loadFile(file);
+  });
+  newImageBtn.addEventListener("click", ()=> fileInput.click());
+
+  function splitFileName(name){
+    const idx = name.lastIndexOf(".");
+    if(idx <= 0) return [name, ""];
+    return [name.slice(0, idx), name.slice(idx)];
+  }
+
+  function mimeForExt(ext){
+    const e = ext.toLowerCase();
+    if(e === ".jpg" || e === ".jpeg") return "image/jpeg";
+    if(e === ".png") return "image/png";
+    if(e === ".webp") return "image/webp";
+    return null; // unsupported -> fall back to png
+  }
+
+  // Turns free-typed text into something safe to drop into a filename:
+  // trims whitespace, collapses anything that isn't a letter/number/dash/underscore
+  // into a single underscore, and strips leading/trailing underscores.
+  function sanitizeLabel(raw){
+    const trimmed = (raw || "").trim();
+    if(!trimmed) return "";
+    return trimmed.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+
+  function loadFile(file){
+    errorBanner.style.display = "none";
+    console.log("Loading file:", file.name, file.type, file.size, "bytes");
+    if(!file.type || file.type.indexOf("image/") !== 0){
+      showError("The selected file (" + file.name + ") does not look like an image (type: " + (file.type || "unknown") + ").");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = ()=> showError("Could not read the selected file from disk (FileReader error).");
+    reader.onload = (ev)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          console.log("Image decoded:", img.naturalWidth, "x", img.naturalHeight);
+          const [base, ext] = splitFileName(file.name || "image.png");
+          state.fileBase = base || "image";
+          let mime = mimeForExt(ext);
+          if(mime){
+            state.fileExt = ext;
+            state.mimeType = mime;
+          } else {
+            state.fileExt = ".png";
+            state.mimeType = "image/png";
+          }
+          state.img = img;
+          state.naturalWidth = img.naturalWidth;
+          state.naturalHeight = img.naturalHeight;
+
+          // Clamp working resolution to stay under browser canvas limits.
+          let w = img.naturalWidth, h = img.naturalHeight;
+          const areaScale = Math.sqrt(MAX_CANVAS_AREA / (w*h));
+          const dimScale = Math.min(MAX_CANVAS_DIM/w, MAX_CANVAS_DIM/h);
+          const scale = Math.min(1, areaScale, dimScale);
+          if(scale < 1){
+            w = Math.max(1, Math.round(w*scale));
+            h = Math.max(1, Math.round(h*scale));
+            showToast("Large image downscaled to " + w + "×" + h + "px for smooth editing/export.");
+          }
+          state.workingWidth = w;
+          state.workingHeight = h;
+
+          canvas.width = w;
+          canvas.height = h;
+          canvas.style.display = "block";
+          canvas.style.maxWidth = "none"; // sizing is now managed explicitly via zoom
+          placeholder.style.display = "none";
+          filenameLabel.textContent = file.name + "  (" + img.naturalWidth + "×" + img.naturalHeight + "px" + (scale<1 ? ", working at " + w + "×" + h : "") + ")";
+          newImageBtn.disabled = false;
+          resetAll();
+
+          zoomOutBtn.disabled = false;
+          zoomInBtn.disabled = false;
+          zoomFitBtn.disabled = false;
+          zoomActualBtn.disabled = false;
+          state.fitZoom = computeFitZoom();
+          applyZoom(state.fitZoom);
+
+          redraw();
+          showToast("Image loaded. Click on it to start placing dots.");
+        } catch(err){
+          showError("Failed while preparing the image: " + (err && err.message ? err.message : err));
+        }
+      };
+      img.onerror = ()=> showError("Could not decode the selected file as an image. Try a different PNG/JPG.");
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function resetAll(){
+    state.mode = "place";
+    state.controlPoints = [];
+    state.points = [];
+    state.closed = false;
+    state.dragIndex = -1;
+    state.dragging = false;
+    updateUI();
+  }
+
+  // ---------- Zoom ----------
+  function computeFitZoom(){
+    if(!state.workingWidth) return 1;
+    const availW = canvasWrap.clientWidth - 20; // minus 10px padding each side
+    if(availW <= 0) return 1;
+    return Math.min(1, availW / state.workingWidth);
+  }
+
+  function updateWrapAlignment(){
+    // A flex item centered with justify-content:center can become unreachable
+    // by scrolling on its "start" side once it overflows. Switch to flex-start
+    // whenever the canvas is larger than the wrap so the full image stays
+    // scrollable/pannable in every direction.
+    const overflowingX = canvas.offsetWidth > canvasWrap.clientWidth;
+    canvasWrap.style.justifyContent = overflowingX ? "flex-start" : "center";
+  }
+
+  function applyZoom(newZoom){
+    if(!state.img) return;
+    newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    state.zoom = newZoom;
+    const w = Math.max(1, Math.round(state.workingWidth * newZoom));
+    const h = Math.max(1, Math.round(state.workingHeight * newZoom));
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    zoomLabel.textContent = Math.round(newZoom * 100) + "%";
+    zoomOutBtn.disabled = newZoom <= ZOOM_MIN + 1e-6;
+    zoomInBtn.disabled = newZoom >= ZOOM_MAX - 1e-6;
+    requestAnimationFrame(updateWrapAlignment);
+    redraw();
+  }
+
+  function zoomStep(factor){
+    applyZoom(state.zoom * factor);
+  }
+
+  zoomInBtn.addEventListener("click", ()=> zoomStep(1.25));
+  zoomOutBtn.addEventListener("click", ()=> zoomStep(0.8));
+  zoomFitBtn.addEventListener("click", ()=>{
+    state.fitZoom = computeFitZoom();
+    applyZoom(state.fitZoom);
+    canvasWrap.scrollLeft = 0;
+    canvasWrap.scrollTop = 0;
+  });
+  zoomActualBtn.addEventListener("click", ()=> applyZoom(1));
+
+  canvasWrap.addEventListener("wheel", (e)=>{
+    if(!state.img) return;
+    if(!(e.ctrlKey || e.metaKey)) return; // otherwise let normal scroll/pan happen
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : (1/1.1);
+    zoomStep(factor);
+  }, {passive:false});
+
+  window.addEventListener("resize", ()=>{
+    updateWrapAlignment();
+    redraw();
+  });
+
+  // Number of curve-interpolation steps per handle-to-handle segment, used for
+  // on-screen rendering. Scales up with zoom so the curve still looks smooth
+  // (not faceted) when you've zoomed in close to inspect an edge.
+  function renderStepsForZoom(){
+    return Math.max(6, Math.min(20, Math.round(8 * Math.sqrt(state.zoom))));
+  }
+
+  // ---------- Coordinate helpers ----------
+  function getBufferCoords(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  }
+
+  function displayScale(){
+    const rect = canvas.getBoundingClientRect();
+    if(rect.width === 0) return 1;
+    return canvas.width / rect.width;
+  }
+
+  // ---------- Catmull-Rom spline ----------
+  function catmullRomPoint(p0, p1, p2, p3, t){
+    const t2 = t*t, t3 = t2*t;
+    const x = 0.5*((2*p1.x) + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3);
+    const y = 0.5*((2*p1.y) + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3);
+    return {x, y};
+  }
+
+  // Build a fine-grained polyline approximation of the smooth curve through control points.
+  // When closed=true, the curve wraps from the last point back to the first instead of
+  // ending, so it forms a continuous loop.
+  function fineSpline(controlPoints, stepsPerSegment, closed){
+    const pts = controlPoints;
+    const n = pts.length;
+    if(n === 0) return [];
+    if(n === 1) return [pts[0]];
+    if(n === 2 && !closed){
+      // A straight (or nearly straight) two-point segment -- nothing to curve.
+      return [pts[0], pts[1]];
+    }
+    const out = [];
+    if(closed && n >= 3){
+      for(let i=0; i<n; i++){
+        const p0 = pts[(i-1+n)%n];
+        const p1 = pts[i % n];
+        const p2 = pts[(i+1) % n];
+        const p3 = pts[(i+2) % n];
+        for(let s=0; s<stepsPerSegment; s++){
+          out.push(catmullRomPoint(p0,p1,p2,p3, s/stepsPerSegment));
+        }
+      }
+      out.push(pts[0]); // close exactly back to the start
+    } else {
+      for(let i=0; i<n-1; i++){
+        const p0 = pts[i-1] || pts[i];
+        const p1 = pts[i];
+        const p2 = pts[i+1];
+        const p3 = pts[i+2] || pts[i+1];
+        for(let s=0; s<stepsPerSegment; s++){
+          out.push(catmullRomPoint(p0,p1,p2,p3, s/stepsPerSegment));
+        }
+      }
+      out.push(pts[n-1]);
+    }
+    return out;
+  }
+
+  // Curve used for actually drawing/exporting the line: a spline threaded through
+  // the (evenly-spaced) editable handle points. Because resampleEven() already
+  // spaces those handles evenly, this second spline pass is well-behaved and
+  // eliminates the straight-line-between-handles "faceted" look, even when a
+  // handle has been dragged to a new spot.
+  function getRenderCurve(points, closed, steps){
+    if(points.length < 2) return points;
+    return fineSpline(points, steps, closed);
+  }
+
+  // Resample a fine polyline at even arc-length spacing
+  function resampleEven(finePts, spacing){
+    if(finePts.length === 0) return [];
+    if(finePts.length === 1) return [finePts[0]];
+    const result = [finePts[0]];
+    let accum = 0;
+    for(let i=1; i<finePts.length; i++){
+      let prev = finePts[i-1];
+      let cur = finePts[i];
+      let segLen = Math.hypot(cur.x-prev.x, cur.y-prev.y);
+      while(accum + segLen >= spacing){
+        const remain = spacing - accum;
+        const t = segLen === 0 ? 0 : remain/segLen;
+        const nx = prev.x + (cur.x-prev.x)*t;
+        const ny = prev.y + (cur.y-prev.y)*t;
+        result.push({x:nx, y:ny});
+        prev = {x:nx, y:ny};
+        segLen = Math.hypot(cur.x-prev.x, cur.y-prev.y);
+        accum = 0;
+      }
+      accum += segLen;
+    }
+    const last = finePts[finePts.length-1];
+    const lastResult = result[result.length-1];
+    if(Math.hypot(last.x-lastResult.x, last.y-lastResult.y) > 0.5){
+      result.push(last);
+    }
+    return result;
+  }
+
+  function buildDensePoints(){
+    const spacing = Math.max(2, parseFloat(spacingInput.value) || 20);
+    const fine = fineSpline(state.controlPoints, 24, state.closed);
+    let pts = resampleEven(fine, spacing);
+    if(state.closed && pts.length > 2){
+      const first = pts[0], last = pts[pts.length-1];
+      if(Math.hypot(first.x-last.x, first.y-last.y) < spacing*0.5){
+        pts.pop(); // drop the near-duplicate point created by wrapping back to the start
+      }
+    }
+    return pts;
+  }
+
+  // ---------- Drawing ----------
+  function drawPathThrough(points, strokeStyle, lineWidth, closed){
+    if(points.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length;i++){
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    if(closed) ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function redraw(){
+    if(!state.img) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
+
+    const scale = displayScale();
+    const lw = Math.max(1, parseFloat(lineWidthInput.value) || 4);
+    const steps = renderStepsForZoom();
+
+    if(state.mode === "place"){
+      if(state.controlPoints.length >= 2){
+        const curve = getRenderCurve(state.controlPoints, false, steps);
+        drawPathThrough(curve, "rgba(255,59,48,0.9)", lw, false);
+      }
+      // draw control dots
+      state.controlPoints.forEach((p, i)=>{
+        const r = CONTROL_RADIUS_CSS * scale;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.fillStyle = "#ffd400";
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, 2*scale);
+        ctx.strokeStyle = "#7a5f00";
+        ctx.stroke();
+        if(i === state.controlPoints.length-1){
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r*1.7, 0, Math.PI*2);
+          ctx.strokeStyle = "rgba(255,212,0,0.6)";
+          ctx.lineWidth = Math.max(1, 1.5*scale);
+          ctx.stroke();
+        }
+        // Hint ring around the first dot once closing a loop is possible.
+        if(i === 0 && state.controlPoints.length >= 3){
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r*2.3, 0, Math.PI*2);
+          ctx.setLineDash([4*scale, 3*scale]);
+          ctx.strokeStyle = "rgba(79,140,255,0.9)";
+          ctx.lineWidth = Math.max(1, 1.5*scale);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      });
+    } else {
+      // edit mode: draw a smooth curve threaded through the dense handle points
+      // (not straight segments between them), so bends stay round.
+      const curve = getRenderCurve(state.points, state.closed, steps);
+      drawPathThrough(curve, "rgba(255,59,48,0.95)", lw, false);
+      state.points.forEach((p)=>{
+        const r = HANDLE_RADIUS_CSS * scale;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.lineWidth = Math.max(1, 2*scale);
+        ctx.strokeStyle = "#1e6bff";
+        ctx.stroke();
+      });
+    }
+  }
+
+  // ---------- UI state sync ----------
+  function updateUI(){
+    const inPlace = state.mode === "place";
+    const inEdit = state.mode === "edit";
+
+    stepPlace.classList.toggle("active", inPlace);
+    stepFinish.classList.toggle("active", inPlace && state.controlPoints.length>=2);
+    stepEdit.classList.toggle("active", inEdit);
+    stepExport.classList.toggle("active", inEdit && state.points.length>=2);
+
+    modeLabel.textContent = (inPlace ? "placing points" : "editing / dragging points") + (state.closed ? " (closed loop)" : "");
+    countLabel.textContent = inPlace ? state.controlPoints.length : state.points.length;
+
+    undoBtn.disabled = !inPlace || state.controlPoints.length === 0;
+    clearBtn.disabled = !state.img || (inPlace ? state.controlPoints.length===0 : state.points.length===0);
+    finishBtn.disabled = !inPlace || state.controlPoints.length < 2;
+    startOverBtn.disabled = !inEdit;
+
+    const canExport = inEdit && state.points.length >= 2;
+    exportSegBtn.disabled = !canExport;
+    exportMaskBtn.disabled = !canExport;
+    exportBothBtn.disabled = !canExport;
+
+    redraw();
+  }
+
+  // ---------- Pointer interaction ----------
+  function hitTestPoints(arr, bufX, bufY, radiusCss){
+    const scale = displayScale();
+    const r = radiusCss * scale;
+    for(let i=arr.length-1; i>=0; i--){
+      const p = arr[i];
+      if(Math.hypot(p.x-bufX, p.y-bufY) <= r + 2*scale){
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function nearestSegment(points, bufX, bufY, closed){
+    let best = {dist: Infinity, index: -1, point: null};
+    const n = points.length;
+    const segCount = closed ? n : n-1;
+    for(let i=0; i<segCount; i++){
+      const a = points[i], b = points[(i+1)%n];
+      const abx = b.x-a.x, aby = b.y-a.y;
+      const len2 = abx*abx+aby*aby;
+      let t = len2 === 0 ? 0 : ((bufX-a.x)*abx + (bufY-a.y)*aby)/len2;
+      t = Math.max(0, Math.min(1, t));
+      const px = a.x + abx*t, py = a.y + aby*t;
+      const d = Math.hypot(bufX-px, bufY-py);
+      if(d < best.dist){
+        best = {dist:d, index:i, point:{x:px,y:py}};
+      }
+    }
+    return best;
+  }
+
+  canvas.addEventListener("pointerdown", (e)=>{
+    if(!state.img) return;
+    canvas.setPointerCapture(e.pointerId);
+    const {x, y} = getBufferCoords(e.clientX, e.clientY);
+    state.hasDraggedDuringPointer = false;
+
+    if(state.mode === "place"){
+      const hit = hitTestPoints(state.controlPoints, x, y, CONTROL_RADIUS_CSS);
+      if(hit !== -1){
+        state.dragIndex = hit;
+        state.dragging = true;
+      } else {
+        // add a new consecutive dot
+        state.controlPoints.push({x, y});
+        updateUI();
+      }
+    } else {
+      if(e.button === 2) return; // handled by contextmenu for delete
+      const hit = hitTestPoints(state.points, x, y, HANDLE_RADIUS_CSS);
+      if(hit !== -1){
+        state.dragIndex = hit;
+        state.dragging = true;
+      }
+    }
+  });
+
+  canvas.addEventListener("pointermove", (e)=>{
+    if(!state.dragging || state.dragIndex === -1) return;
+    const {x, y} = getBufferCoords(e.clientX, e.clientY);
+    const cx = Math.max(0, Math.min(canvas.width, x));
+    const cy = Math.max(0, Math.min(canvas.height, y));
+    state.hasDraggedDuringPointer = true;
+    if(state.mode === "place"){
+      state.controlPoints[state.dragIndex] = {x:cx, y:cy};
+    } else {
+      state.points[state.dragIndex] = {x:cx, y:cy};
+    }
+    redraw();
+  });
+
+  function finalizeLine(closeLoop){
+    if(state.controlPoints.length < 2){
+      showToast("Place at least 2 dots first.");
+      return;
+    }
+    if(closeLoop && state.controlPoints.length < 3){
+      showToast("Place at least 3 dots before closing the loop.");
+      return;
+    }
+    state.closed = !!closeLoop;
+    state.points = buildDensePoints();
+    state.mode = "edit";
+    updateUI();
+    showToast((closeLoop ? "Loop closed" : "Line created") + " with " + state.points.length + " draggable points. Drag to adjust.");
+  }
+
+  function endDrag(e){
+    if(state.dragging){
+      // Clicking (not dragging) the first control dot while placing, once there
+      // are enough dots to form a shape, closes the loop.
+      const closingClick = state.mode === "place"
+        && state.dragIndex === 0
+        && !state.hasDraggedDuringPointer
+        && state.controlPoints.length >= 3;
+      state.dragging = false;
+      state.dragIndex = -1;
+      if(closingClick){
+        finalizeLine(true);
+        return;
+      }
+      updateUI();
+    }
+  }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  // Double-click: insert a new point near the clicked spot on the line (edit mode only)
+  canvas.addEventListener("dblclick", (e)=>{
+    if(!state.img || state.mode !== "edit") return;
+    const {x, y} = getBufferCoords(e.clientX, e.clientY);
+    const scale = displayScale();
+    const best = nearestSegment(state.points, x, y, state.closed);
+    if(best.index !== -1 && best.dist <= INSERT_THRESHOLD_CSS*scale){
+      state.points.splice(best.index+1, 0, best.point);
+      updateUI();
+      showToast("Point inserted.");
+    }
+  });
+
+  // Right-click: delete a point (edit mode) or a control dot (place mode)
+  canvas.addEventListener("contextmenu", (e)=>{
+    if(!state.img) return;
+    e.preventDefault();
+    const {x, y} = getBufferCoords(e.clientX, e.clientY);
+    if(state.mode === "edit"){
+      const hit = hitTestPoints(state.points, x, y, HANDLE_RADIUS_CSS);
+      if(hit !== -1 && state.points.length > 2){
+        state.points.splice(hit, 1);
+        updateUI();
+        showToast("Point deleted.");
+      } else if(hit !== -1){
+        showToast("At least 2 points are required.");
+      }
+    } else {
+      const hit = hitTestPoints(state.controlPoints, x, y, CONTROL_RADIUS_CSS);
+      if(hit !== -1){
+        state.controlPoints.splice(hit, 1);
+        updateUI();
+      }
+    }
+  });
+
+  // ---------- Buttons ----------
+  undoBtn.addEventListener("click", ()=>{
+    if(state.mode !== "place") return;
+    state.controlPoints.pop();
+    updateUI();
+  });
+
+  clearBtn.addEventListener("click", ()=>{
+    if(state.mode === "place"){
+      state.controlPoints = [];
+    } else {
+      state.points = [];
+      state.mode = "place";
+      state.controlPoints = [];
+      state.closed = false;
+    }
+    updateUI();
+  });
+
+  finishBtn.addEventListener("click", ()=> finalizeLine(false));
+
+  startOverBtn.addEventListener("click", ()=>{
+    state.mode = "place";
+    state.controlPoints = [];
+    state.points = [];
+    state.closed = false;
+    updateUI();
+  });
+
+  spacingInput.addEventListener("change", ()=>{
+    // If already in edit mode, rebuilding from control points would discard manual edits,
+    // so spacing only affects the NEXT "Finish line" action after a Start Over / new image.
+    if(state.mode === "place"){
+      redraw();
+    }
+  });
+  lineWidthInput.addEventListener("input", redraw);
+
+  // ---------- Export ----------
+  const exportPreviewPanel = document.getElementById("exportPreviewPanel");
+  const exportPreviewList = document.getElementById("exportPreviewList");
+
+  function buildExportCanvas(drawFn){
+    const off = document.createElement("canvas");
+    off.width = state.workingWidth;
+    off.height = state.workingHeight;
+    const octx = off.getContext("2d");
+    drawFn(octx, off);
+    return off;
+  }
+
+  function strokePointsPath(octx, points, closed){
+    octx.beginPath();
+    octx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length;i++) octx.lineTo(points[i].x, points[i].y);
+    if(closed) octx.closePath();
+    octx.stroke();
+  }
+
+  // Renders a "Save Image As..." preview card. This is the reliable save path:
+  // some hosting contexts run this page inside a sandboxed frame that blocks
+  // scripted/automatic downloads (no "allow-downloads" permission), which makes
+  // an auto-download-only approach silently fail with no visible error.
+  // A user-initiated right-click "Save Image As..." on a rendered <img> is a
+  // browser-chrome action, not a page script action, so it still works there.
+  function addPreviewCard(filename, blobUrl){
+    const card = document.createElement("div");
+    card.style.cssText = "background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:10px; max-width:260px;";
+
+    const label = document.createElement("div");
+    label.textContent = filename;
+    label.style.cssText = "font-size:12px; color:var(--text); margin-bottom:8px; word-break:break-all;";
+    card.appendChild(label);
+
+    const img = document.createElement("img");
+    img.src = blobUrl;
+    img.alt = filename;
+    img.style.cssText = "max-width:100%; display:block; border-radius:4px; margin-bottom:8px; background:#fff;";
+    card.appendChild(img);
+
+    const hint = document.createElement("div");
+    hint.textContent = "Right-click the image → “Save Image As…”";
+    hint.style.cssText = "font-size:11px; color:var(--text-dim); margin-bottom:6px;";
+    card.appendChild(hint);
+
+    const openLink = document.createElement("a");
+    openLink.href = blobUrl;
+    openLink.target = "_blank";
+    openLink.rel = "noopener";
+    openLink.textContent = "Open full image in new tab";
+    openLink.style.cssText = "display:inline-block; font-size:11px; color:var(--accent);";
+    card.appendChild(openLink);
+
+    exportPreviewList.appendChild(card);
+  }
+
+  function openPreviewPanel(){
+    exportPreviewList.innerHTML = "";
+    exportPreviewPanel.style.display = "block";
+    exportPreviewPanel.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+
+  function produceExport(filename, drawFn, mimeType){
+    return new Promise((resolve)=>{
+      const off = buildExportCanvas(drawFn);
+      off.toBlob((blob)=>{
+        if(!blob){ showToast("Export failed for " + filename + "."); resolve(null); return; }
+        const url = URL.createObjectURL(blob);
+
+        // Best-effort automatic download. Works fine on a normal top-level page;
+        // silently does nothing if the page is embedded in a sandboxed frame
+        // without "allow-downloads" -- that's exactly why the preview card below
+        // always gives a working manual fallback via right-click.
+        try{
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch(err){
+          console.warn("Automatic download attempt failed, use the manual save option:", err);
+        }
+
+        addPreviewCard(filename, url);
+        resolve(url);
+      }, mimeType, 0.95);
+    });
+  }
+
+  // Builds the two output filenames, e.g. "photo_segmented.png" / "photo_blue.png",
+  // or with a label set: "photo_segmented_door.png" / "photo_blue_door.png".
+  function buildExportFilename(kind){
+    const label = sanitizeLabel(labelInput.value);
+    const suffix = label ? ("_" + label) : "";
+    return state.fileBase + "_" + kind + suffix + state.fileExt;
+  }
+
+  function exportSegmented(){
+    if(state.points.length < 2) return Promise.resolve(null);
+    const lw = Math.max(1, parseFloat(lineWidthInput.value) || 4);
+    const curve = getRenderCurve(state.points, state.closed, EXPORT_RENDER_STEPS);
+    return produceExport(buildExportFilename("segmented"), (octx)=>{
+      octx.drawImage(state.img, 0, 0, state.workingWidth, state.workingHeight);
+      octx.strokeStyle = "#ff0000";
+      octx.lineWidth = lw;
+      octx.lineJoin = "round";
+      octx.lineCap = "round";
+      strokePointsPath(octx, curve, false);
+    }, state.mimeType);
+  }
+
+  function exportMask(){
+    if(state.points.length < 2) return Promise.resolve(null);
+    const curve = getRenderCurve(state.points, state.closed, EXPORT_RENDER_STEPS);
+    return produceExport(buildExportFilename("blue"), (octx, offCanvas)=>{
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, offCanvas.width, offCanvas.height);
+      octx.strokeStyle = "#0000ff";
+      octx.lineWidth = 7;
+      octx.lineJoin = "round";
+      octx.lineCap = "round";
+      strokePointsPath(octx, curve, false);
+    }, state.mimeType);
+  }
+
+  exportSegBtn.addEventListener("click", ()=>{
+    openPreviewPanel();
+    exportSegmented().then(()=>{
+      showToast("Segmented image ready — see preview below.");
+    });
+  });
+  exportMaskBtn.addEventListener("click", ()=>{
+    openPreviewPanel();
+    exportMask().then(()=>{
+      showToast("Mask image ready — see preview below.");
+    });
+  });
+  exportBothBtn.addEventListener("click", ()=>{
+    openPreviewPanel();
+    exportSegmented().then(()=> exportMask()).then(()=>{
+      showToast("Both images ready — see preview below.");
+    });
+  });
+
+  // Prevent page scroll while dragging on touch devices
+  canvas.addEventListener("touchstart", (e)=>{ if(state.img) e.preventDefault(); }, {passive:false});
+  canvas.addEventListener("touchmove", (e)=>{ if(state.img) e.preventDefault(); }, {passive:false});
+
+  updateUI();
+})();
+</script>
+</body>
+</html>
