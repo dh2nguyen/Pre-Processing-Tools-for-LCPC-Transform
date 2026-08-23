@@ -299,7 +299,7 @@
     <div class="steps">
       <div class="step" id="stepPlace"><span class="dot"></span>1. Click to place dots</div>
       <div class="step" id="stepFinish"><span class="dot"></span>2. Finish line or close loop</div>
-      <div class="step" id="stepEdit"><span class="dot"></span>3. Drag points to adjust</div>
+      <div class="step" id="stepEdit"><span class="dot"></span>3. Click to add &amp; drag points to adjust</div>
       <div class="step" id="stepExport"><span class="dot"></span>4. Export</div>
     </div>
   </div>
@@ -328,12 +328,16 @@
       <button id="startOverBtn" disabled>Start over (edit points)</button>
       <label class="field">
         Point spacing (px)
-        <input type="number" id="spacingInput" value="20" min="4" max="200" step="1">
+        <input type="number" id="spacingInput" value="5" min="4" max="200" step="1">
       </label>
       <div class="spacer"></div>
       <label class="field">
         Red line width
         <input type="number" id="lineWidthInput" value="4" min="1" max="40" step="1">
+      </label>
+      <label class="field">
+        Red line opacity (%)
+        <input type="number" id="lineOpacityInput" value="20" min="5" max="100" step="1">
       </label>
     </div>
     <div style="height:10px;"></div>
@@ -341,8 +345,8 @@
       <div class="legend">
         <span><span class="swatch" style="background:#ffd400;border:2px solid #7a5f00;"></span>control dot (step 1)</span>
         <span><span class="swatch" style="background:transparent;border:2px dashed #4f8cff;"></span>first dot (click to close loop, once &ge;3 dots)</span>
-        <span><span class="swatch" style="background:#fff;border:2px solid #1e6bff;"></span>draggable point (step 3)</span>
-        <span><span class="swatch" style="background:#ff3b30;"></span>segmentation line</span>
+        <span><span class="swatch" style="background:#fff;border:2px solid #1e6bff;"></span>draggable point (step 3) &mdash; click empty space to add one</span>
+        <span><span class="swatch" style="background:rgba(255,59,48,0.20);"></span>segmentation line (semi-transparent)</span>
       </div>
       <div class="spacer"></div>
       <div class="status">
@@ -365,21 +369,29 @@
       <button id="exportMaskBtn" class="primary" disabled>Export mask (blue line, 7px)</button>
       <button id="exportBothBtn" disabled>Export both</button>
     </div>
+    <div style="height:10px;"></div>
+    <div class="export-row">
+      <button id="exportCoordsBtn" disabled>Save line coordinates (.json)</button>
+      <button id="loadCoordsBtn" disabled>Load line coordinates (.json)&hellip;</button>
+      <input type="file" id="coordsFileInput" accept="application/json,.json" style="display:none;">
+      <span class="zoom-hint">Saves every draggable point (plus spacing/width/opacity/label) to a small JSON file &mdash; load it back later, over the same image, to keep editing this exact line.</span>
+    </div>
     <div style="height:12px;"></div>
     <div class="help">
       <b>How to use:</b> click anywhere on the image to drop dots one after another, tracing along the boundary you want to segment.
       Click <kbd>Finish line &rarr;</kbd> once you have at least 2 dots to end an open line, <b>or click the first dot again</b> (once you have at least 3 dots) to close the shape into a loop.
       Use the zoom controls (or <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + scroll) to get closer to edges while placing or adjusting dots; scroll or drag the scrollbars to pan around when zoomed in.
-      Drag any handle to nudge the line &mdash; the rendered/exported line is a smooth curve through the handles, not a straight-line polygon, so it should follow tight bends cleanly. Double-click on the line to insert a new handle at that spot; right-click a handle to delete it.
+      Drag any handle to nudge the line &mdash; the rendered/exported line is a smooth curve through the handles, not a straight-line polygon, so it should follow tight bends cleanly. <b>Click anywhere that isn't already a handle to drop a new draggable point there</b> &mdash; useful when the automatic curve cuts a corner or undershoots a round edge; keep holding and moving the mouse after the click to shape that point in the same motion. Right-click a handle to delete it.
       When you're happy with the line, optionally set a label above, then export the two output images. Filenames automatically match your input file name, with <code>_segmented</code> and <code>_blue</code> suffixes (plus your label, if set).
       To trace a second, independent object on the same image: export the current line, click <kbd>Start over</kbd>, change the label, and trace the next one &mdash; each export gets its own distinct filenames.
+      Not finished yet? Click <kbd>Save line coordinates (.json)</kbd> to save every point to a file; later, load the same image back into this tool and click <kbd>Load line coordinates (.json)&hellip;</kbd> to restore the exact line (still in edit mode) and keep dragging/adding/deleting points from where you left off.
     </div>
   </div>
 
   <div class="panel" id="exportPreviewPanel" style="display:none;">
     <div style="font-size:13px; color:var(--text); margin-bottom:12px; line-height:1.5;">
-      <b>Your images are ready below.</b> Some browsers (especially when this page is embedded/hosted, e.g. via a shared link) block automatic downloads.
-      To be safe, <b style="color:var(--warn);">right-click each image and choose &ldquo;Save Image As&hellip;&rdquo;</b> to save it to your computer. An automatic download was also attempted, so check your Downloads folder too &mdash; if it's not there, the manual save below will work.
+      <b>Your export is ready below.</b> Some browsers (especially when this page is embedded/hosted, e.g. via a shared link) block automatic downloads.
+      To be safe, <b style="color:var(--warn);">right-click an image and choose &ldquo;Save Image As&hellip;&rdquo;</b>, or for a coordinates file use its <b style="color:var(--warn);">Download link, or Copy text</b> button. An automatic download was also attempted, so check your Downloads folder too &mdash; if it's not there, the manual options below will work.
     </div>
     <div id="exportPreviewList" style="display:flex; flex-wrap:wrap; gap:16px;"></div>
   </div>
@@ -454,12 +466,16 @@
   const startOverBtn = document.getElementById("startOverBtn");
   const spacingInput = document.getElementById("spacingInput");
   const lineWidthInput = document.getElementById("lineWidthInput");
+  const lineOpacityInput = document.getElementById("lineOpacityInput");
   const labelInput = document.getElementById("labelInput");
   const modeLabel = document.getElementById("modeLabel");
   const countLabel = document.getElementById("countLabel");
   const exportSegBtn = document.getElementById("exportSegBtn");
   const exportMaskBtn = document.getElementById("exportMaskBtn");
   const exportBothBtn = document.getElementById("exportBothBtn");
+  const exportCoordsBtn = document.getElementById("exportCoordsBtn");
+  const loadCoordsBtn = document.getElementById("loadCoordsBtn");
+  const coordsFileInput = document.getElementById("coordsFileInput");
   const toast = document.getElementById("toast");
   const stepPlace = document.getElementById("stepPlace");
   const stepFinish = document.getElementById("stepFinish");
@@ -473,7 +489,6 @@
 
   const HANDLE_RADIUS_CSS = 6;     // visual/hit radius in CSS (display) pixels
   const CONTROL_RADIUS_CSS = 6;
-  const INSERT_THRESHOLD_CSS = 10; // how close a dblclick must be to a segment to insert
 
   // ---------- Toast ----------
   let toastTimer = null;
@@ -515,73 +530,152 @@
     return trimmed.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
   }
 
-  function loadFile(file){
+  // Given a decoded image's natural size, compute the (possibly downscaled)
+  // working size that stays under the canvas-size caps above.
+  function computeWorkingDims(naturalW, naturalH){
+    let w = naturalW, h = naturalH;
+    const areaScale = Math.sqrt(MAX_CANVAS_AREA / (w*h));
+    const dimScale = Math.min(MAX_CANVAS_DIM/w, MAX_CANVAS_DIM/h);
+    const scale = Math.min(1, areaScale, dimScale);
+    if(scale < 1){
+      w = Math.max(1, Math.round(w*scale));
+      h = Math.max(1, Math.round(h*scale));
+    }
+    return {w, h, scaled: scale < 1};
+  }
+
+  // Draw a drawable source (ImageBitmap/Image/canvas) into a new canvas sized
+  // exactly w×h, once. Used so the expensive full-res-to-working-res scaling
+  // happens a single time at load, instead of on every redraw()/export call.
+  function prerenderToCanvas(source, w, h){
+    const off = document.createElement("canvas");
+    off.width = w;
+    off.height = h;
+    const octx = off.getContext("2d");
+    octx.drawImage(source, 0, 0, w, h);
+    return off;
+  }
+
+  // Decodes an image file into a drawable object already sized to the working
+  // resolution. Prefers createImageBitmap(), which decodes straight from the
+  // Blob (skipping the FileReader base64 round-trip that made large photos
+  // slow to load -- especially in Firefox) and can resize during decode.
+  // Falls back to the classic FileReader+<img> path for older browsers or if
+  // decoding via createImageBitmap fails for some reason.
+  async function decodeImageFile(file){
+    if(typeof createImageBitmap === "function"){
+      let full = null;
+      try{
+        full = await createImageBitmap(file);
+        const naturalWidth = full.width, naturalHeight = full.height;
+        const {w, h, scaled} = computeWorkingDims(naturalWidth, naturalHeight);
+        let renderSource = full;
+        if(scaled){
+          try{
+            renderSource = await createImageBitmap(full, {resizeWidth: w, resizeHeight: h, resizeQuality: "high"});
+            full.close();
+          } catch(resizeErr){
+            console.warn("Resizing createImageBitmap failed, pre-rendering to an offscreen canvas instead:", resizeErr);
+            renderSource = prerenderToCanvas(full, w, h);
+            full.close();
+          }
+        }
+        return {bitmap: renderSource, naturalWidth, naturalHeight, workingWidth: w, workingHeight: h};
+      } catch(err){
+        if(full){ try{ full.close(); } catch(e){} }
+        console.warn("createImageBitmap decode failed, falling back to Image/FileReader:", err);
+      }
+    }
+    return decodeImageFileLegacy(file);
+  }
+
+  function decodeImageFileLegacy(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onerror = ()=> reject(new Error("Could not read the selected file from disk (FileReader error)."));
+      reader.onload = (ev)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          try{
+            const naturalWidth = img.naturalWidth, naturalHeight = img.naturalHeight;
+            const {w, h} = computeWorkingDims(naturalWidth, naturalHeight);
+            // Pre-render once at working size so redraw()/export don't have to
+            // rescale the full-resolution image on every single call.
+            const rendered = (w === naturalWidth && h === naturalHeight) ? img : prerenderToCanvas(img, w, h);
+            resolve({bitmap: rendered, naturalWidth, naturalHeight, workingWidth: w, workingHeight: h});
+          } catch(err){
+            reject(err);
+          }
+        };
+        img.onerror = ()=> reject(new Error("Could not decode the selected file as an image. Try a different PNG/JPG."));
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function loadFile(file){
     errorBanner.style.display = "none";
     console.log("Loading file:", file.name, file.type, file.size, "bytes");
     if(!file.type || file.type.indexOf("image/") !== 0){
       showError("The selected file (" + file.name + ") does not look like an image (type: " + (file.type || "unknown") + ").");
       return;
     }
-    const reader = new FileReader();
-    reader.onerror = ()=> showError("Could not read the selected file from disk (FileReader error).");
-    reader.onload = (ev)=>{
-      const img = new Image();
-      img.onload = ()=>{
-        try{
-          console.log("Image decoded:", img.naturalWidth, "x", img.naturalHeight);
-          const [base, ext] = splitFileName(file.name || "image.png");
-          state.fileBase = base || "image";
-          let mime = mimeForExt(ext);
-          if(mime){
-            state.fileExt = ext;
-            state.mimeType = mime;
-          } else {
-            state.fileExt = ".png";
-            state.mimeType = "image/png";
-          }
-          state.img = img;
-          state.naturalWidth = img.naturalWidth;
-          state.naturalHeight = img.naturalHeight;
+    showToast("Loading image…");
+    try{
+      const decoded = await decodeImageFile(file);
+      console.log("Image decoded:", decoded.naturalWidth, "x", decoded.naturalHeight, "-> working", decoded.workingWidth, "x", decoded.workingHeight);
 
-          // Clamp working resolution to stay under browser canvas limits.
-          let w = img.naturalWidth, h = img.naturalHeight;
-          const areaScale = Math.sqrt(MAX_CANVAS_AREA / (w*h));
-          const dimScale = Math.min(MAX_CANVAS_DIM/w, MAX_CANVAS_DIM/h);
-          const scale = Math.min(1, areaScale, dimScale);
-          if(scale < 1){
-            w = Math.max(1, Math.round(w*scale));
-            h = Math.max(1, Math.round(h*scale));
-            showToast("Large image downscaled to " + w + "×" + h + "px for smooth editing/export.");
-          }
-          state.workingWidth = w;
-          state.workingHeight = h;
+      const [base, ext] = splitFileName(file.name || "image.png");
+      state.fileBase = base || "image";
+      let mime = mimeForExt(ext);
+      if(mime){
+        state.fileExt = ext;
+        state.mimeType = mime;
+      } else {
+        state.fileExt = ".png";
+        state.mimeType = "image/png";
+      }
 
-          canvas.width = w;
-          canvas.height = h;
-          canvas.style.display = "block";
-          canvas.style.maxWidth = "none"; // sizing is now managed explicitly via zoom
-          placeholder.style.display = "none";
-          filenameLabel.textContent = file.name + "  (" + img.naturalWidth + "×" + img.naturalHeight + "px" + (scale<1 ? ", working at " + w + "×" + h : "") + ")";
-          newImageBtn.disabled = false;
-          resetAll();
+      // Release the previous decoded image's memory (if it was an ImageBitmap)
+      // before swapping in the new one.
+      if(state.img && typeof state.img.close === "function"){
+        try{ state.img.close(); } catch(e){}
+      }
 
-          zoomOutBtn.disabled = false;
-          zoomInBtn.disabled = false;
-          zoomFitBtn.disabled = false;
-          zoomActualBtn.disabled = false;
-          state.fitZoom = computeFitZoom();
-          applyZoom(state.fitZoom);
+      state.img = decoded.bitmap;
+      state.naturalWidth = decoded.naturalWidth;
+      state.naturalHeight = decoded.naturalHeight;
+      const w = decoded.workingWidth, h = decoded.workingHeight;
+      const scale = (w < decoded.naturalWidth || h < decoded.naturalHeight);
+      if(scale){
+        showToast("Large image downscaled to " + w + "×" + h + "px for smooth editing/export.");
+      }
+      state.workingWidth = w;
+      state.workingHeight = h;
 
-          redraw();
-          showToast("Image loaded. Click on it to start placing dots.");
-        } catch(err){
-          showError("Failed while preparing the image: " + (err && err.message ? err.message : err));
-        }
-      };
-      img.onerror = ()=> showError("Could not decode the selected file as an image. Try a different PNG/JPG.");
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
+      canvas.width = w;
+      canvas.height = h;
+      canvas.style.display = "block";
+      canvas.style.maxWidth = "none"; // sizing is now managed explicitly via zoom
+      placeholder.style.display = "none";
+      filenameLabel.textContent = file.name + "  (" + decoded.naturalWidth + "×" + decoded.naturalHeight + "px" + (scale ? ", working at " + w + "×" + h : "") + ")";
+      newImageBtn.disabled = false;
+      loadCoordsBtn.disabled = false;
+      resetAll();
+
+      zoomOutBtn.disabled = false;
+      zoomInBtn.disabled = false;
+      zoomFitBtn.disabled = false;
+      zoomActualBtn.disabled = false;
+      state.fitZoom = computeFitZoom();
+      applyZoom(state.fitZoom);
+
+      redraw();
+      if(!scale) showToast("Image loaded. Click on it to start placing dots.");
+    } catch(err){
+      showError("Failed while preparing the image: " + (err && err.message ? err.message : err));
+    }
   }
 
   function resetAll(){
@@ -765,7 +859,7 @@
   }
 
   function buildDensePoints(){
-    const spacing = Math.max(2, parseFloat(spacingInput.value) || 20);
+    const spacing = Math.max(2, parseFloat(spacingInput.value) || 5);
     const fine = fineSpline(state.controlPoints, 24, state.closed);
     let pts = resampleEven(fine, spacing);
     if(state.closed && pts.length > 2){
@@ -778,6 +872,15 @@
   }
 
   // ---------- Drawing ----------
+  // Reads the "Red line opacity" field and returns a 0..1 alpha, used for both
+  // the on-screen preview and the exported segmented image so the two match
+  // (WYSIWYG) and the line stays see-through rather than covering the image.
+  function currentLineAlpha(){
+    const pct = parseFloat(lineOpacityInput.value);
+    const clamped = Math.max(5, Math.min(100, isNaN(pct) ? 20 : pct));
+    return clamped / 100;
+  }
+
   function drawPathThrough(points, strokeStyle, lineWidth, closed){
     if(points.length < 2) return;
     ctx.save();
@@ -803,11 +906,12 @@
     const scale = displayScale();
     const lw = Math.max(1, parseFloat(lineWidthInput.value) || 4);
     const steps = renderStepsForZoom();
+    const alpha = currentLineAlpha();
 
     if(state.mode === "place"){
       if(state.controlPoints.length >= 2){
         const curve = getRenderCurve(state.controlPoints, false, steps);
-        drawPathThrough(curve, "rgba(255,59,48,0.9)", lw, false);
+        drawPathThrough(curve, "rgba(255,59,48," + alpha + ")", lw, false);
       }
       // draw control dots
       state.controlPoints.forEach((p, i)=>{
@@ -841,7 +945,7 @@
       // edit mode: draw a smooth curve threaded through the dense handle points
       // (not straight segments between them), so bends stay round.
       const curve = getRenderCurve(state.points, state.closed, steps);
-      drawPathThrough(curve, "rgba(255,59,48,0.95)", lw, false);
+      drawPathThrough(curve, "rgba(255,59,48," + alpha + ")", lw, false);
       state.points.forEach((p)=>{
         const r = HANDLE_RADIUS_CSS * scale;
         ctx.beginPath();
@@ -877,6 +981,7 @@
     exportSegBtn.disabled = !canExport;
     exportMaskBtn.disabled = !canExport;
     exportBothBtn.disabled = !canExport;
+    exportCoordsBtn.disabled = !canExport;
 
     redraw();
   }
@@ -935,6 +1040,20 @@
       if(hit !== -1){
         state.dragIndex = hit;
         state.dragging = true;
+      } else {
+        // Clicking anywhere that isn't an existing handle drops a new
+        // draggable point right there, spliced into the sequence next to
+        // whichever existing segment is closest -- so it works even when
+        // the automatic curve is far off (under/overshooting a round bend),
+        // not just when clicking near the current line. Keep the pointer
+        // "dragging" this new point so the same click can be dragged
+        // further before release to shape it in one motion.
+        const best = nearestSegment(state.points, x, y, state.closed);
+        const insertAt = best.index === -1 ? state.points.length : best.index + 1;
+        state.points.splice(insertAt, 0, {x, y});
+        state.dragIndex = insertAt;
+        state.dragging = true;
+        updateUI();
       }
     }
   });
@@ -988,19 +1107,6 @@
   }
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
-
-  // Double-click: insert a new point near the clicked spot on the line (edit mode only)
-  canvas.addEventListener("dblclick", (e)=>{
-    if(!state.img || state.mode !== "edit") return;
-    const {x, y} = getBufferCoords(e.clientX, e.clientY);
-    const scale = displayScale();
-    const best = nearestSegment(state.points, x, y, state.closed);
-    if(best.index !== -1 && best.dist <= INSERT_THRESHOLD_CSS*scale){
-      state.points.splice(best.index+1, 0, best.point);
-      updateUI();
-      showToast("Point inserted.");
-    }
-  });
 
   // Right-click: delete a point (edit mode) or a control dot (place mode)
   canvas.addEventListener("contextmenu", (e)=>{
@@ -1062,6 +1168,7 @@
     }
   });
   lineWidthInput.addEventListener("input", redraw);
+  lineOpacityInput.addEventListener("input", redraw);
 
   // ---------- Export ----------
   const exportPreviewPanel = document.getElementById("exportPreviewPanel");
@@ -1121,6 +1228,68 @@
     exportPreviewList.appendChild(card);
   }
 
+  // Same reliability pattern as addPreviewCard, but for the JSON coordinates
+  // file: no <img> to right-click-save, so the fallback is a read-only
+  // textarea (select-all/copy always works, even in a sandboxed frame) plus
+  // a plain download link and an "open in new tab" link.
+  function addCoordsPreviewCard(filename, jsonText, blobUrl){
+    const card = document.createElement("div");
+    card.style.cssText = "background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:10px; max-width:320px; width:100%;";
+
+    const label = document.createElement("div");
+    label.textContent = filename;
+    label.style.cssText = "font-size:12px; color:var(--text); margin-bottom:8px; word-break:break-all;";
+    card.appendChild(label);
+
+    const textarea = document.createElement("textarea");
+    textarea.value = jsonText;
+    textarea.readOnly = true;
+    textarea.style.cssText = "width:100%; height:90px; resize:vertical; background:#0d0f13; color:var(--text); border:1px solid var(--border); border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; padding:6px; margin-bottom:8px; box-sizing:border-box;";
+    card.appendChild(textarea);
+
+    const linkRow = document.createElement("div");
+    linkRow.style.cssText = "display:flex; gap:12px; align-items:center; flex-wrap:wrap;";
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = blobUrl;
+    downloadLink.download = filename;
+    downloadLink.textContent = "Download .json";
+    downloadLink.style.cssText = "font-size:11px; color:var(--accent);";
+    linkRow.appendChild(downloadLink);
+
+    const openLink = document.createElement("a");
+    openLink.href = blobUrl;
+    openLink.target = "_blank";
+    openLink.rel = "noopener";
+    openLink.textContent = "Open in new tab";
+    openLink.style.cssText = "font-size:11px; color:var(--accent);";
+    linkRow.appendChild(openLink);
+
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Copy text";
+    copyBtn.className = "small";
+    copyBtn.style.cssText = "padding:3px 8px; font-size:11px;";
+    copyBtn.addEventListener("click", ()=>{
+      textarea.select();
+      let copied = false;
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(jsonText).then(()=> showToast("Copied to clipboard.")).catch(()=>{
+          try{ document.execCommand("copy"); showToast("Copied to clipboard."); }
+          catch(e){ showToast("Couldn't copy automatically — text is selected, use Ctrl/Cmd+C."); }
+        });
+        copied = true;
+      }
+      if(!copied){
+        try{ document.execCommand("copy"); showToast("Copied to clipboard."); }
+        catch(e){ showToast("Couldn't copy automatically — text is selected, use Ctrl/Cmd+C."); }
+      }
+    });
+    linkRow.appendChild(copyBtn);
+
+    card.appendChild(linkRow);
+    exportPreviewList.appendChild(card);
+  }
+
   function openPreviewPanel(){
     exportPreviewList.innerHTML = "";
     exportPreviewPanel.style.display = "block";
@@ -1163,13 +1332,150 @@
     return state.fileBase + "_" + kind + suffix + state.fileExt;
   }
 
+  // "photo_coordinatesFile.json", or with a label set: "photo_coordinatesFile_door.json".
+  function buildCoordsFilename(){
+    const label = sanitizeLabel(labelInput.value);
+    const suffix = label ? ("_" + label) : "";
+    return state.fileBase + "_coordinatesFile" + suffix + ".json";
+  }
+
+  // ---------- Save / load line coordinates ----------
+  // Captures everything needed to faithfully resume editing later: every
+  // dense/draggable point (in the same "working" pixel space the canvas
+  // uses), whether the shape is a closed loop, and the current tool
+  // settings, plus the working resolution so points can be rescaled if the
+  // image is reloaded at a slightly different size.
+  function buildCoordsPayload(){
+    return {
+      format: "dot-interpolating-segmentation-coords",
+      version: 1,
+      sourceFile: state.fileBase + state.fileExt,
+      workingWidth: state.workingWidth,
+      workingHeight: state.workingHeight,
+      naturalWidth: state.naturalWidth,
+      naturalHeight: state.naturalHeight,
+      closed: state.closed,
+      points: state.points.map(p => ({x: p.x, y: p.y})),
+      settings: {
+        spacing: parseFloat(spacingInput.value) || 5,
+        lineWidth: parseFloat(lineWidthInput.value) || 4,
+        lineOpacity: parseFloat(lineOpacityInput.value) || 20,
+        label: labelInput.value || ""
+      }
+    };
+  }
+
+  function exportCoords(){
+    if(state.points.length < 2){
+      showToast("Create a line first.");
+      return;
+    }
+    const payload = buildCoordsPayload();
+    const jsonText = JSON.stringify(payload, null, 2);
+    const filename = buildCoordsFilename();
+    const blob = new Blob([jsonText], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+
+    // Best-effort automatic download, same as the image exports; the
+    // preview card below is the reliable manual fallback either way.
+    try{
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch(err){
+      console.warn("Automatic download attempt failed, use the manual save option:", err);
+    }
+
+    addCoordsPreviewCard(filename, jsonText, url);
+    showToast("Line coordinates ready (" + state.points.length + " points) — see preview below.");
+  }
+
+  function loadCoordsFile(file){
+    if(!state.img){
+      showToast("Load an image first, then load its saved line coordinates.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = ()=> showError("Could not read the coordinates file from disk (FileReader error).");
+    reader.onload = (ev)=>{
+      let data;
+      try{
+        data = JSON.parse(ev.target.result);
+      } catch(err){
+        showError("Could not parse \"" + file.name + "\" as JSON: " + (err && err.message ? err.message : err));
+        return;
+      }
+      applyCoordsPayload(data, file.name);
+    };
+    reader.readAsText(file);
+  }
+
+  function applyCoordsPayload(data, sourceName){
+    if(!data || !Array.isArray(data.points) || data.points.length < 2){
+      showError("\"" + (sourceName || "That file") + "\" doesn't look like exported line coordinates (missing or too-short \"points\" array).");
+      return;
+    }
+    // If the coordinates were saved at a different working resolution than
+    // the currently-loaded image (e.g. a differently-sized copy of the same
+    // photo), rescale every point proportionally so the line still lines up.
+    const savedW = Number(data.workingWidth) || state.workingWidth;
+    const savedH = Number(data.workingHeight) || state.workingHeight;
+    const scaleX = (savedW > 0 && state.workingWidth > 0) ? state.workingWidth / savedW : 1;
+    const scaleY = (savedH > 0 && state.workingHeight > 0) ? state.workingHeight / savedH : 1;
+    const rescaled = Math.abs(scaleX - 1) > 1e-6 || Math.abs(scaleY - 1) > 1e-6;
+
+    const points = data.points
+      .filter(p => p && isFinite(p.x) && isFinite(p.y))
+      .map(p => ({x: p.x * scaleX, y: p.y * scaleY}));
+
+    if(points.length < 2){
+      showError("\"" + (sourceName || "That file") + "\" didn't contain enough valid points to restore a line.");
+      return;
+    }
+
+    state.points = points;
+    state.closed = !!data.closed;
+    state.controlPoints = []; // the original click-by-click dots aren't needed once dense points are loaded directly
+    state.mode = "edit";
+    state.dragIndex = -1;
+    state.dragging = false;
+
+    if(data.settings){
+      if(isFinite(data.settings.spacing)) spacingInput.value = data.settings.spacing;
+      if(isFinite(data.settings.lineWidth)) lineWidthInput.value = data.settings.lineWidth;
+      if(isFinite(data.settings.lineOpacity)) lineOpacityInput.value = data.settings.lineOpacity;
+      if(typeof data.settings.label === "string") labelInput.value = data.settings.label;
+    }
+
+    updateUI();
+    showToast("Line loaded: " + points.length + " points restored" + (rescaled ? " (rescaled to fit this image)" : "") + ". Keep editing, or export when ready.");
+  }
+
+  loadCoordsBtn.addEventListener("click", ()=> coordsFileInput.click());
+  coordsFileInput.addEventListener("change", (e)=>{
+    const file = e.target.files && e.target.files[0];
+    coordsFileInput.value = ""; // allow re-selecting the same file later
+    if(!file) return;
+    loadCoordsFile(file);
+  });
+  exportCoordsBtn.addEventListener("click", ()=>{
+    openPreviewPanel();
+    exportCoords();
+  });
+
   function exportSegmented(){
     if(state.points.length < 2) return Promise.resolve(null);
     const lw = Math.max(1, parseFloat(lineWidthInput.value) || 4);
+    const alpha = currentLineAlpha();
     const curve = getRenderCurve(state.points, state.closed, EXPORT_RENDER_STEPS);
     return produceExport(buildExportFilename("segmented"), (octx)=>{
       octx.drawImage(state.img, 0, 0, state.workingWidth, state.workingHeight);
-      octx.strokeStyle = "#ff0000";
+      // Semi-transparent red so the underlying image content is still visible
+      // through the segmentation line, rather than being fully painted over.
+      octx.strokeStyle = "rgba(255,0,0," + alpha + ")";
       octx.lineWidth = lw;
       octx.lineJoin = "round";
       octx.lineCap = "round";
